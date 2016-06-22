@@ -1,127 +1,60 @@
-import socket,asyncore
+import socket,select,json
 
-class forwarder(asyncore.dispatcher):
-    def __init__(self, ip, port, remoteip,remoteport,backlog=5):
-        asyncore.dispatcher.__init__(self)
-        self.remoteip=remoteip
-        self.remoteport=remoteport
-        self.create_socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.set_reuse_addr()
-        self.bind((ip,port))
-        self.listen(backlog)
+ESQ_SEQ_BEG = "~\'\"\"\"{~~."
+ESQ_SEQ_END = ".~~\'\"\"\"{~"
+ESQ_LEN = len(ESQ_SEQ_BEG)
+MSG_LEN = 8192
 
-    def handle_accept(self):
-        conn, addr = self.accept()
-        # print '--- Connect --- '
-        sender(receiver(conn),self.remoteip,self.remoteport)
-
-class receiver(asyncore.dispatcher):
-    def __init__(self,conn):
-        asyncore.dispatcher.__init__(self,conn)
-        self.from_remote_buffer=''
-        self.to_remote_buffer=''
-        self.sender=None
-
-    def handle_connect(self):
-        pass
-
-    def handle_read(self):
-        read = self.recv(4096)
-        # print '%04i -->'%len(read)
-        self.from_remote_buffer += read
-
-    def writable(self):
-        return (len(self.to_remote_buffer) > 0)
-
-    def handle_write(self):
-        sent = self.send(self.to_remote_buffer)
-        # print '%04i <--'%sent
-        self.to_remote_buffer = self.to_remote_buffer[sent:]
-
-    def handle_close(self):
-        self.close()
-        if self.sender:
-            self.sender.close()
-
-class sender(asyncore.dispatcher):
-    def __init__(self, receiver, remoteaddr,remoteport):
-        asyncore.dispatcher.__init__(self)
-        self.receiver=receiver
-        receiver.sender=self
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connect((remoteaddr, remoteport))
-
-    def handle_connect(self):
-        pass
-
-    def handle_read(self):
-        read = self.recv(4096)
-        # print '<-- %04i'%len(read)
-        self.receiver.to_remote_buffer += read
-
-    def writable(self):
-        return (len(self.receiver.from_remote_buffer) > 0)
-
-    def handle_write(self):
-        sent = self.send(self.receiver.from_remote_buffer)
-        # print '--> %04i'%sent
-        self.receiver.from_remote_buffer = self.receiver.from_remote_buffer[sent:]
-
-    def handle_close(self):
-        self.close()
-        self.receiver.close()
-
-class sender_enter(asyncore.dispatcher):
-    def __init__(self, remoteaddr, remoteport):
-        asyncore.dispatcher.__init__(self)
-        self.remoteport = 8880
-        self.remoteip = "p1.plotti.co"
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connect((remoteaddr, remoteport))
-
-    def handle_connect(self):
-        sender(receiver(self),self.remoteip,self.remoteport)
-
-    def handle_read(self):
-        read = self.recv(4096)
-        # print '<-- %04i'%len(read)
-        self.receiver.to_remote_buffer += read
-
-    def writable(self):
-        return (len(self.receiver.from_remote_buffer) > 0)
-
-    def handle_write(self):
-        sent = self.send(self.receiver.from_remote_buffer)
-        # print '--> %04i'%sent
-        self.receiver.from_remote_buffer = self.receiver.from_remote_buffer[sent:]
-
-    def handle_close(self):
-        self.close()
-        self.receiver.close()
-
-
-
-if __name__=='__main__':
-    import optparse
-    parser = optparse.OptionParser()
-
-    parser.add_option(
-        '-l','--local-ip',
-        dest='local_ip',default='127.0.0.1',
-        help='Local IP address to bind to')
-    parser.add_option(
-        '-p','--local-port',
-        type='int',dest='local_port',default=80,
-        help='Local port to bind to')
-    parser.add_option(
-        '-r','--remote-ip',dest='remote_ip',
-        help='Local IP address to bind to')
-    parser.add_option(
-        '-P','--remote-port',
-        type='int',dest='remote_port',default=80,
-        help='Remote port to bind to')
-    options, args = parser.parse_args()
-
-    # forwarder(options.local_ip,options.local_port,options.remote_ip,options.remote_port)
-    sender_enter(options.local_ip, options.local_port)
-    asyncore.loop()
+def netcat():
+    s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s1.connect(("localhost", 8022))
+    s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s2.connect(("p1.plotti.co", 8880))
+    inputs = [ s1, s2 ]
+    outputs = [ ]
+    data = ""
+    msg_wait = False
+    msg = ""
+    while True:
+        readable, writable, exceptional = select.select(inputs, outputs, inputs)
+        for s in readable:
+            if s is s1:
+                data = s1.recv(4096)
+                s2.send(data)
+            if s is s2:
+                read = s2.recv(4096)
+                if not msg_wait:
+                    if ESQ_SEQ_BEG in read: #TODO: startswith will be faster!
+                        pos = read.index(ESQ_SEQ_BEG)
+                        msg = read[pos+ESQ_LEN:]
+                        read = read[:pos]
+                        if ESQ_SEQ_END in msg:
+                            pos = msg.index(ESQ_SEQ_END)
+                            read += msg[pos+ESQ_LEN:]
+                            msg = msg[:pos]
+                            print json.loads(msg)
+                        else:
+                            msg_wait = True
+                if msg_wait:
+                    if ESQ_SEQ_END in read:
+                        pos = read.index(ESQ_SEQ_END)
+                        msg += read[:pos]
+                        read = read[pos+ESQ_LEN:]
+                        msg_wait = False
+                        print json.loads(msg)
+                    else:
+                        msg += read
+                        read = ""
+                        if len(msg) > MSG_LEN:
+                            read = msg
+                            msg_wait = False
+                if read: s1.send(read)
+        # print "Received:", len(data)
+        if len(data) == 0:
+            break
+        if exceptional: 
+            break
+    print "Connection closed."
+    s.close()
+    
+netcat()
