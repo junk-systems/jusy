@@ -167,7 +167,7 @@ class JSSession(JuSyProxy):
     def collect_report(self):
         "collect a usage report"
         local_acct = json.dumps(self.run_dict)
-        return string.join([get_sa_report_unsafe(self.username), get_sa_stat(self.username), top_dump(self.username)], "\n---\n")
+        return string.join([get_sa_report_unsafe(self.username), get_sa_stat(self.username), local_acct, top_dump(self.username)], "\n---\n")
         
     def finish(self, fin_code):
         report = self.collect_report()
@@ -373,6 +373,9 @@ def get_rngs_binary():
     return zlib.decompress(base64.b64decode(RNGS_BINARY), 16+zlib.MAX_WBITS)
     
 def main():
+    if os.geteuid():
+        logger.error("Must be root to run jusy")
+        return
     w = Worker()
     w.loop()
     
