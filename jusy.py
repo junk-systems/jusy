@@ -20,7 +20,8 @@ import logging
 import logging.handlers
 logger = logging.getLogger('jusy')
 logger.setLevel(logging.DEBUG)
-handler = logging.handlers.SysLogHandler(address = '/dev/log')
+# handler = logging.handlers.SysLogHandler(address = '/dev/log')
+handler = logging.FileHandler('/var/log/jusy.log')
 logger.addHandler(handler)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
@@ -35,7 +36,8 @@ USER_BEG = "jsuser"
 MAX_PROC_PER_USER = 50
 
 class JuSyProxy(threading.Thread):
-    def __init__(self, session):
+    def __init__(self):
+        super(JuSyProxy, self).__init__()
         self.started = False
         pass
     def send_dict(self, d):
@@ -119,7 +121,7 @@ class JSSession(JuSyProxy):
         self.create_disk()
         self.mount_disk()
         self.gen_privkey_access()
-        self.accounting_start_ts = 0
+        self.accounting_start_ts = time.time() 
         self.session_start_ts = time.time()
         self.old_cpu_time = 0
         self.account_call_count = 0
@@ -131,7 +133,8 @@ class JSSession(JuSyProxy):
         self.send_dict({"type": "announce", "username": self.username, "privkey": self.privkey, "owner_hash": OWNER_HASH })
     
     def gen_user(self):
-        salt = random.randint(100000, 99999)
+        global COUNTER
+        salt = random.randint(100000, 999999)
         self.username = USER_BEG+str(salt)+str(COUNTER)
         COUNTER += 1
         subprocess.call(["addgroup", "nobody"])
@@ -143,7 +146,7 @@ class JSSession(JuSyProxy):
     def create_disk(self):
         try:
             subprocess.call(["truncate", "-s", "5G", self.diskfile])
-            subprocess.call(["mkfs.ext2", self.diskfile])
+            subprocess.call(["mkfs.ext2", "-F", self.diskfile])
         except OSError:
             logger.warning("Can not create virtual disk at %s" % self.diskfile)
     
@@ -156,7 +159,7 @@ class JSSession(JuSyProxy):
         
     def gen_privkey_access(self):
         self.keyfile = os.path.join(self.home, "key")
-        subprocess.call(["ssh-keygen", "-t", "rsa", "-f", self.keyfile])
+        subprocess.call(["ssh-keygen", "-t", "rsa", "-N", "","-f", self.keyfile])
         self.privkey = file(self.keyfile).read()
         os.mkdir(os.path.join(self.home, ".ssh"), 0o700)
         shutil.copyfile(self.keyfile+".pub", os.path.join(self.home, ".ssh", "authorized_keys"))
@@ -187,6 +190,7 @@ class JSSession(JuSyProxy):
         except OSError:
             logger.warning("Can not remove diskfile at %s" % self.diskfile)
         subprocess.call(["userdel", "-r", self.username])
+        self._loop = False
         
     def sum_run_times(self):
         self.run_dict.update(cpu_time_live_dict(self.username))
