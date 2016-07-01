@@ -4,7 +4,9 @@
 # Copyright (C) 2016 Andrew Gryaznov <realgrandrew@gmail.com>
 # License: BSD 3-Clause License
 
-LOCAL_SSH_PORT = 8022
+LOCAL_SSH_PORT = 22
+API_SERVER = "proxy.junk.systems"
+API_PORT = 8001 # V1 API
 
 import sys,multiprocessing,signal
 OWNER_HASH = sys.argv[1] # first parameter is owner hash
@@ -61,7 +63,7 @@ class JuSyProxy(threading.Thread):
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s1.connect(("localhost", LOCAL_SSH_PORT))
         s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s2.connect(("p1.plotti.co", 8880))
+        s2.connect((API_SERVER, API_PORT))
         self.send_sock = s2
         inputs = [ s1, s2 ]
         outputs = [ ]
