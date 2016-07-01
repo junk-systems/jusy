@@ -4,10 +4,13 @@
 # Copyright (C) 2016 Andrew Gryaznov <realgrandrew@gmail.com>
 # License: BSD 3-Clause License
 
+LOCAL_SSH_PORT = 8022
+
 import sys,multiprocessing
 OWNER_HASH = sys.argv[1] # first parameter is owner hash
 NCORES = multiprocessing.cpu_count()
-NSESSIONS = int(NCORES * 1.3)
+# NSESSIONS = int(NCORES * 1.3)
+NSESSIONS = 1
 
 # -----------------------------------------------
 
@@ -34,6 +37,8 @@ MSG_LEN = 8192
 COUNTER = 0
 USER_BEG = "jsuser"
 MAX_PROC_PER_USER = 50
+# CPUTIME_MAX = 3600
+CPUTIME_MAX = 30 # for testing - finish after 30 sec 
 
 class JuSyProxy(threading.Thread):
     def __init__(self):
@@ -51,7 +56,7 @@ class JuSyProxy(threading.Thread):
         self._loop = False
     def run(self):
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s1.connect(("localhost", 8022))
+        s1.connect(("localhost", LOCAL_SSH_PORT))
         s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s2.connect(("p1.plotti.co", 8880))
         self.send_sock = s2
@@ -63,7 +68,7 @@ class JuSyProxy(threading.Thread):
         self._loop = True
         
         while self._loop:
-            readable, writable, exceptional = select.select(inputs, outputs, inputs, timeout=2)
+            readable, writable, exceptional = select.select(inputs, outputs, inputs, 2)
             for s in readable:
                 if not self.started:
                     self.started = True
@@ -142,6 +147,7 @@ class JSSession(JuSyProxy):
         self.uid = getpwnam(self.username).pw_uid
         self.gid = getpwnam(self.username).pw_gid
         self.home = getpwnam(self.username).pw_dir
+        os.chmod(self.home, 0o700)
     
     def create_disk(self):
         try:
@@ -156,12 +162,12 @@ class JSSession(JuSyProxy):
             os.chown(self.home, self.uid, self.gid)
         except OSError:
             logger.warning("Can not call mount %s %s" % (self.diskfile, self.home))
-        
+       
     def gen_privkey_access(self):
-        self.keyfile = os.path.join(self.home, "key")
+        os.mkdir(os.path.join(self.home, ".ssh"), 0o700)
+        self.keyfile = os.path.join(self.home, ".ssh", "key")
         subprocess.call(["ssh-keygen", "-t", "rsa", "-N", "","-f", self.keyfile])
         self.privkey = file(self.keyfile).read()
-        os.mkdir(os.path.join(self.home, ".ssh"), 0o700)
         shutil.copyfile(self.keyfile+".pub", os.path.join(self.home, ".ssh", "authorized_keys"))
         os.chown(os.path.join(self.home, ".ssh"), self.uid, self.gid)
         os.chown(os.path.join(self.home, ".ssh", "authorized_keys"), self.uid, self.gid)
@@ -174,7 +180,8 @@ class JSSession(JuSyProxy):
         
     def finish(self, fin_code):
         report = self.collect_report()
-        self.send_dict({"type": "finish", "fin_code": fin_code, "report": compress_report(report)})
+        full_rep = {"type": "finish", "fin_code": fin_code, "report": compress_report(report)}
+        if fin_code != "FIN_CONN_CLOSED": self.send_dict(full_rep)
         self.stop()
         
     def stop(self):
@@ -209,7 +216,7 @@ class JSSession(JuSyProxy):
             cputime += tpast
         else:
             cputime = self.sum_run_times()
-        if cputime > 3600:
+        if cputime > CPUTIME_MAX:
             logger.info("max work reached for %s - stopping" % self.username)
             self.finish("FIN_DONE")
             return
@@ -306,6 +313,8 @@ def count_processes(username):
                 c += 1
         except IOError: # proc has already terminated
             continue
+        except OSError: # proc has already terminated
+            continue
     return c
     
 def cpu_time_live_dict(username):
@@ -347,7 +356,7 @@ class Worker(object):
         self.sessions = []
     
     def count_sessions(self):
-        self.sessions = [t for t in self.sessions if not t.isAlive()]
+        self.sessions = [t for t in self.sessions if t.isAlive()]
         return len(self.sessions)
     
     def start_session(self):
@@ -365,6 +374,7 @@ class Worker(object):
     def loop(self):
         while True:
             if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
+                logger.debug("Starting new session, current: %s" % repr(self.sessions))
                 self.start_session()
             self.check_cpu_times()
             time.sleep(5)
