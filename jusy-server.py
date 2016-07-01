@@ -4,15 +4,13 @@
 # Copyright (C) 2016 Andrew Gryaznov <realgrandrew@gmail.com>
 # License: BSD 3-Clause License
 
-LOCAL_SSH_PORT = 22
 API_SERVER = "proxy.junk.systems"
 API_PORT = 8001 # V1 API
 
 import sys,multiprocessing,signal
 OWNER_HASH = sys.argv[1] # first parameter is owner hash
 NCORES = multiprocessing.cpu_count()
-# NSESSIONS = int(NCORES * 1.3)
-NSESSIONS = 1
+NSESSIONS = int(NCORES * 1.3)
 
 # -----------------------------------------------
 
@@ -400,8 +398,23 @@ def get_rngs_binary():
     return zlib.decompress(base64.b64decode(RNGS_BINARY), 16+zlib.MAX_WBITS)
     
 def main():
+    import optparse
+    parser = optparse.OptionParser()
+    parser.add_option(
+        '-p','--ssh-port',type="int",
+        dest='ssh_port',default=22,
+        help='Local SSH server port')
+    parser.add_option(
+        '-n','--sessions-count',
+        type='int',dest='sessions_count',default=0,
+        help='Force amount of parallel sessions (= # of CPUs by default)')
+    options, args = parser.parse_args()
+    global NSESSIONS, LOCAL_SSH_PORT
+    if options.sessions_count > 0:
+        NSESSIONS = options.sessions_count
+    LOCAL_SSH_PORT = options.ssh_port
     if os.geteuid():
-        logger.error("Must be root to run jusy")
+        logger.error("Must be root to run jusy server")
         return
     w = Worker()
     w.loop()
