@@ -8,7 +8,6 @@ API_SERVER = "proxy.junk.systems"
 API_PORT = 8001 # V1 API
 
 import sys,multiprocessing,signal
-OWNER_HASH = sys.argv[1] # first parameter is owner hash
 NCORES = multiprocessing.cpu_count()
 NSESSIONS = int(NCORES * 1.3)
 
@@ -409,7 +408,8 @@ def main():
         type='int',dest='sessions_count',default=0,
         help='Force amount of parallel sessions (= # of CPUs by default)')
     options, args = parser.parse_args()
-    global NSESSIONS, LOCAL_SSH_PORT
+    global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH
+    OWNER_HASH = args[0] # first parameter is owner hash
     if options.sessions_count > 0:
         NSESSIONS = options.sessions_count
     LOCAL_SSH_PORT = options.ssh_port
