@@ -6,7 +6,7 @@
 
 LOCAL_SSH_PORT = 8022
 
-import sys,multiprocessing
+import sys,multiprocessing,signal
 OWNER_HASH = sys.argv[1] # first parameter is owner hash
 NCORES = multiprocessing.cpu_count()
 # NSESSIONS = int(NCORES * 1.3)
@@ -23,10 +23,13 @@ import logging
 import logging.handlers
 logger = logging.getLogger('jusy')
 logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # handler = logging.handlers.SysLogHandler(address = '/dev/log')
 handler = logging.FileHandler('/var/log/jusy.log')
+handler.setFormatter(formatter)
 logger.addHandler(handler)
 ch = logging.StreamHandler()
+ch.setFormatter(formatter)
 ch.setLevel(logging.DEBUG)
 logger.addHandler(ch)
 
@@ -354,6 +357,7 @@ def top_dump(username):
 class Worker(object):
     def __init__(self):
         self.sessions = []
+        self._loop = True
     
     def count_sessions(self):
         self.sessions = [t for t in self.sessions if t.isAlive()]
@@ -372,12 +376,19 @@ class Worker(object):
             s.check_accounting()
     
     def loop(self):
-        while True:
-            if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
-                logger.debug("Starting new session, current: %s" % repr(self.sessions))
-                self.start_session()
-            self.check_cpu_times()
-            time.sleep(5)
+        try:
+            while self._loop:
+                if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
+                    logger.debug("Starting new session, current: %s" % repr(self.sessions))
+                    self.start_session()
+                self.check_cpu_times()
+                time.sleep(5)
+        except KeyboardInterrupt:
+            self.stop_all()
+    def stop_all(self):
+        self._loop = False
+        for s in self.sessions:
+            s.stop()
 
 # to get this, use base64 -w 0 ./rngs
 RNGS_BINARY = """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"""
@@ -393,6 +404,10 @@ def main():
     w = Worker()
     w.loop()
     
+def shutdown():
+    w.stop_all()
+
+signal.signal(signal.SIGTERM, shutdown)
 
 if __name__ == '__main__':
     main()
