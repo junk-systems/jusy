@@ -56,6 +56,16 @@ class JuSyProxy(threading.Thread):
         pass
     def stop(self):
         self._loop = False
+    def handle_message(self, d):
+        logger.debug("message received %s" % repr(d))
+        if d["type"] == 'push_key':
+            logger.info('adding pubkey %s' % d['pubkey'])
+            self.add_pubkey(d['pubkey'])
+        if d['type'] == 'prng_test':
+            self.send_dict(prng_compute(d['seed']))
+    def add_pubkey(self, key):
+        'to be overwritten by inherit'
+        pass
     def run(self):
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s1.connect(("localhost", LOCAL_SSH_PORT))
@@ -89,7 +99,10 @@ class JuSyProxy(threading.Thread):
                                 pos = msg.index(ESQ_SEQ_END)
                                 read += msg[pos+ESQ_LEN:]
                                 msg = msg[:pos]
-                                print json.loads(msg)
+                                try:
+                                    self.handle_message(json.loads(msg))
+                                except ValueError:
+                                    logger.warning("could not decode server message")
                             else:
                                 msg_wait = True
                     if msg_wait:
@@ -98,7 +111,10 @@ class JuSyProxy(threading.Thread):
                             msg += read[:pos]
                             read = read[pos+ESQ_LEN:]
                             msg_wait = False
-                            print json.loads(msg)
+                            try:
+                                self.handle_message(json.loads(msg))
+                            except ValueError:
+                                logger.warning("could not decode server message")
                         else:
                             msg += read
                             read = ""
@@ -175,6 +191,9 @@ class JSSession(JuSyProxy):
         os.chown(os.path.join(self.home, ".ssh", "authorized_keys"), self.uid, self.gid)
         os.chmod(os.path.join(self.home, ".ssh", "authorized_keys"), 0o644)
     
+    def add_pubkey(self, key):
+        open(os.path.join(self.home, ".ssh", "authorized_keys"), 'a').write('\n'+key)
+        
     def collect_report(self):
         "collect a usage report"
         local_acct = json.dumps(self.run_dict)
@@ -321,13 +340,16 @@ def count_processes(username):
     
 def cpu_time_live_dict(username):
     d = {}
-    for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username]).split("\n")[7:]:
-        tt = l.split()
-        if len(tt) < 11: continue
-        x = time.strptime(tt[10].split(".")[0], '%M:%S')
-        c_time = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds()
-        pid = int(tt[0])
-        d[pid] = c_time
+    try:
+        for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username]).split("\n")[7:]:
+            tt = l.split()
+            if len(tt) < 11: continue
+            x = time.strptime(tt[10].split(".")[0], '%M:%S')
+            c_time = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds()
+            pid = int(tt[0])
+            d[pid] = c_time
+    except subprocess.CalledProcessError:
+        pass
     return d
 
 
@@ -395,7 +417,12 @@ RNGS_BINARY = """H4sICIffcFcAA3JuZ3MA7VprcBPXFb6SLSxskJQUisPD3mQMtWis2I6hJuEhOU6
 def get_rngs_binary():
     import zlib,base64
     return zlib.decompress(base64.b64decode(RNGS_BINARY), 16+zlib.MAX_WBITS)
-    
+
+def prng_compute(d):
+    prng_bin = '/tmp/jusy_prng'
+    open(prng_bin, 'w').write(get_rngs_binary())
+    os.chmod(prng_bin, 0o700)
+    return subprocess.check_output([prng_bin, str(d)]).strip()
 def main():
     import optparse
     parser = optparse.OptionParser()
@@ -408,7 +435,7 @@ def main():
         type='int',dest='sessions_count',default=0,
         help='Force amount of parallel sessions (= # of CPUs by default)')
     options, args = parser.parse_args()
-    global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH
+    global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH, w
     OWNER_HASH = args[0] # first parameter is owner hash
     if options.sessions_count > 0:
         NSESSIONS = options.sessions_count
