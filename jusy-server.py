@@ -39,8 +39,8 @@ MSG_LEN = 8192
 COUNTER = 0
 USER_BEG = "jsuser"
 MAX_PROC_PER_USER = 50
-# CPUTIME_MAX = 3600
-CPUTIME_MAX = 30 # for testing - finish after 30 sec 
+CPUTIME_MAX = 3600
+# CPUTIME_MAX = 30 # for testing - finish after 30 sec 
 
 class JuSyProxy(threading.Thread):
     def __init__(self):
@@ -166,6 +166,23 @@ class JSSession(JuSyProxy):
         self.idle_count = 0
         self.nobsdacct = nobsdacct
         self.run_dict = {}
+        if not self.test_login():
+           self.run = self.norun 
+    
+    def no_run(self):
+        logger.info("Not running due to errors")
+    def test_login(self):
+        try:
+            subprocess.check_call(["ssh", "-i", self.keyfile, "-oBatchMode=yes", "-p", str(LOCAL_SSH_PORT), "-l", self.username, "localhost", "ls"])
+        except subprocess.CalledProcessError:
+            logger.error("Can not log in to myself using ssh key! Check ssh configuration")
+            return False
+        except OSError:
+            logger.error("Can not execute ssh to test connection")
+            return False
+        logger.debug("login self test OK")
+        return True
+            
         
     def handle_connect(self):
         self.send_dict({"type": "announce", "username": self.username, "privkey": self.privkey, "owner_hash": OWNER_HASH })
@@ -201,7 +218,7 @@ class JSSession(JuSyProxy):
     def create_disk(self):
         try:
             subprocess.call(["truncate", "-s", "5G", self.diskfile])
-            subprocess.call(["mkfs.ext2", "-F", self.diskfile])
+            subprocess.call(["mkfs.ext2", "-q", "-F", self.diskfile])
         except OSError:
             logger.warning("Can not create virtual disk at %s" % self.diskfile)
     
@@ -215,7 +232,7 @@ class JSSession(JuSyProxy):
     def gen_privkey_access(self):
         os.mkdir(os.path.join(self.home, ".ssh"), 0o700)
         self.keyfile = os.path.join(self.home, ".ssh", "key")
-        subprocess.call(["ssh-keygen", "-t", "rsa", "-N", "","-f", self.keyfile])
+        subprocess.call(["ssh-keygen", "-q", "-t", "rsa", "-N", "","-f", self.keyfile])
         self.privkey = file(self.keyfile).read()
         shutil.copyfile(self.keyfile+".pub", os.path.join(self.home, ".ssh", "authorized_keys"))
         os.chown(os.path.join(self.home, ".ssh"), self.uid, self.gid)
