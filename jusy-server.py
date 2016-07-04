@@ -62,15 +62,30 @@ class JuSyProxy(threading.Thread):
             logger.info('adding pubkey %s' % d['pubkey'])
             self.add_pubkey(d['pubkey'])
         if d['type'] == 'prng_test':
-            self.send_dict(prng_compute(d['seed']))
+            ts = time.time()
+            cr = prng_compute(d['seed'])
+            self.send_dict({"type": "prng_result", "result": str(float(cr))})
+            logger.debug("Replying with computation %s - %s that took %ss" % (d['seed'], cr, time.time() - ts))
     def add_pubkey(self, key):
         'to be overwritten by inherit'
         pass
     def run(self):
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s1.connect(("localhost", LOCAL_SSH_PORT))
+        try:
+            s1.connect(("localhost", LOCAL_SSH_PORT))
+        except:
+            logger.error("Could not establish local SSH connection")
+            self.finish("FIN_CONN_CLOSED") # it is obviously impossible to send fin status if connection is closed...
+            return
         s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s2.connect((API_SERVER, API_PORT))
+        try:
+            s2.connect((API_SERVER, API_PORT))
+        except:
+            logger.error("Could not establish connection to proxy server")
+            s1.close()
+            self.finish("FIN_CONN_CLOSED") # it is obviously impossible to send fin status if connection is closed...
+            return
+            
         self.send_sock = s2
         inputs = [ s1, s2 ]
         outputs = [ ]
@@ -102,7 +117,7 @@ class JuSyProxy(threading.Thread):
                                 try:
                                     self.handle_message(json.loads(msg))
                                 except ValueError:
-                                    logger.warning("could not decode server message")
+                                    logger.warning("could not decode server message %s" % msg)
                             else:
                                 msg_wait = True
                     if msg_wait:
@@ -166,6 +181,22 @@ class JSSession(JuSyProxy):
         self.gid = getpwnam(self.username).pw_gid
         self.home = getpwnam(self.username).pw_dir
         os.chmod(self.home, 0o700)
+        self.iptables_check()
+        
+    def iptables_check(self):
+        try:
+            subprocess.check_output("iptables -nL | grep 'owner GID match %s'" % self.gid, shell=True)
+        except subprocess.CalledProcessError:
+            logger.debug("Adding new iptables rules")
+            self.iptables_set()
+            
+        
+    def iptables_set(self):
+        try:
+            subprocess.call("iptables -A OUTPUT -m owner --gid-owner %s -p tcp -m tcp -m multiport ! --dports 22 -j DROP" % self.gid, shell=True)
+            subprocess.call("iptables -A OUTPUT -m owner --gid-owner %s -p udp -j DROP" % self.gid, shell=True)
+        except subprocess.CalledProcessError:
+            logger.warning("Could not apply iptables rules")
     
     def create_disk(self):
         try:

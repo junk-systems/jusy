@@ -15,5 +15,5 @@ file(pkey, "w").write(d["privkey"])
 os.chmod(pkey, 0o600)
 d["privkey"] = "<hidden>"
 print "Connect with", repr(d)
-subprocess.call(["ssh", "-i", "./pkey", "-oStrictHostKeyChecking=no", "-l", d["username"], "-p", str(d["port"]), "localhost"])
+subprocess.call(["ssh", "-i", "./pkey", "-oStrictHostKeyChecking=no", "-l", d["username"], "-p", str(d["port"]), d["host"]])
 os.remove(pkey)
