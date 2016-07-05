@@ -253,9 +253,9 @@ class JSSession(JuSyProxy):
 
     def iptables_set(self):
         try:
-            subprocess.call("iptables -A OUTPUT -m owner --gid-owner %s -p tcp -m tcp -m multiport ! --dports 22 -j DROP"
+            subprocess.call("iptables -A OUTPUT -m owner --gid-owner %s -p tcp -m tcp -m multiport ! --dports 22,53 -j DROP"
                             % self.gid, shell=True)
-            subprocess.call("iptables -A OUTPUT -m owner --gid-owner %s -p udp -j DROP"
+            subprocess.call("iptables -A OUTPUT -m owner --gid-owner %s -p udp -m udp -m multiport ! --dports 53 -j DROP"
                             % self.gid, shell=True)
         except subprocess.CalledProcessError:
             logger.warning("Could not apply iptables rules")
