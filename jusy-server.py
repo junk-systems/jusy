@@ -65,7 +65,7 @@ def get_lock(process_name):
         lock_socket.bind('\0' + process_name)
         logger.debug('got the lock')
     except socket.error:
-        logger.error('lock exists - can not continue')
+        logger.debug('lock exists - can not continue')
         sys.exit()
 
 class JuSyProxy(threading.Thread):
