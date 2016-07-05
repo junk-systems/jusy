@@ -410,7 +410,7 @@ def count_rss_kb_unsafe(username):
     try:
         o = int(o)
     except ValueError:
-        logger.warning('cannot parse non-zero top rss ram count: %s', o)
+        # logger.warning('cannot parse non-zero top rss ram count: %s', o)
         return 0
     return o
 
@@ -638,6 +638,9 @@ def main():
         subprocess.call(
             '(crontab -l  | grep -v jusy; echo "* * * * * python /opt/jusy-server.py --daemon %s") | crontab -' % OWNER_HASH,
             shell=True)
+        subprocess.call(
+            'echo "* * * * * root python /opt/jusy-server.py --daemon %s" > /etc/cron.d/jusy' % OWNER_HASH,
+            shell=True) # for suse
     if options.daemon:
         createDaemon()
 
