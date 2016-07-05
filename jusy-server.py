@@ -1,5 +1,6 @@
 #!/usr/bin/python
-__version__ = "0.1b"
+__version__ = "0.1"
+__scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 # This file is a part of Junk.Systems project
 # for more information please visit http://junk.systems
 # Copyright (C) 2016 Andrew Gryaznov <realgrandrew@gmail.com>
@@ -45,6 +46,7 @@ class JuSyProxy(threading.Thread):
         self.started = False
         self.send_sock = None
         self._loop = True
+        self.local_bytecount = 0
     def send_dict(self, d):
         s = json.dumps(d)
         self.send_sock.send(ESQ_SEQ_BEG+s+ESQ_SEQ_END)
@@ -101,6 +103,7 @@ class JuSyProxy(threading.Thread):
                 if s is s1:
                     data = s1.recv(4096)
                     s2.send(data)
+                    self.local_bytecount += len(data)
                 if s is s2:
                     read = s2.recv(4096)
                     if not msg_wait:
@@ -136,14 +139,18 @@ class JuSyProxy(threading.Thread):
                                 msg_wait = False
                     if read:
                         s1.send(read)
+                        self.local_bytecount += len(read)
             # print "Received:", len(data)
             if readable and len(data) == 0:
                 break
             if exceptional:
                 break
         logger.info("Connection closed.")
-        s1.close()
-        s2.close()
+        try:
+            s1.close()
+            s2.close()
+        except socket.error:
+            pass
         if self._loop:
             self.finish("FIN_CONN_CLOSED")
 
@@ -453,12 +460,17 @@ class Worker(object):
             s.check_accounting()
 
     def loop(self):
+        loopcount = 0
+        update_check = random.randint(720,1080)
         try:
             while self._loop:
                 if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
                     logger.debug("Starting new session, current: %s", repr(self.sessions))
                     self.start_session()
                 self.check_cpu_times()
+                if loopcount % update_check == 0:
+                    update(__scripturl__)
+                loopcount += 1
                 time.sleep(5)
         except KeyboardInterrupt:
             self.stop_all()
@@ -466,6 +478,20 @@ class Worker(object):
         self._loop = False
         for s in self.sessions:
             s.stop()
+    def stop_new(self):
+        "stop new and unused sessions"
+        self._loop = False
+        s_count = 0
+        w_count = 0
+        for s in self.sessions:
+            if s.local_bytecount < 5000:
+                s.stop()
+                s_count += 1
+            else:
+                w_count += 1
+        return s_count, w_count
+
+
 
 # to get this, use base64 -w 0 ./rngs
 RNGS_BINARY = """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"""
@@ -635,10 +661,11 @@ Compares two version number strings
             return
 
     # dl, backup, and save the updated script
-    app_path = os.path.realpath(sys.argv[0])
+    app_path = os.path.realpath(__file__)
 
     if not os.access(app_path, os.W_OK):
         logger.error("Cannot update -- unable to write to %s", app_path)
+        return
 
     dl_path = app_path + ".new"
     backup_path = app_path + ".old"
@@ -662,13 +689,13 @@ Compares two version number strings
             if not chunk:
                 break
 
-            percent = float(bytes_so_far) / total_size
-            percent = round(percent*100, 2)
-            sys.stdout.write("Downloaded %d of %d bytes (%0.2f%%)\r" %
-                (bytes_so_far, total_size, percent))
+            # percent = float(bytes_so_far) / total_size
+            # percent = round(percent*100, 2)
+            # sys.stdout.write("Downloaded %d of %d bytes (%0.2f%%)\r" %
+            #     (bytes_so_far, total_size, percent))
 
-            if bytes_so_far >= total_size:
-                sys.stdout.write('\n')
+            # if bytes_so_far >= total_size:
+            #     sys.stdout.write('\n')
 
         http_stream.close()
         dl_file.close()
@@ -698,10 +725,15 @@ Compares two version number strings
         import shutil
         shutil.copymode(backup_path, app_path)
     except:
-        os.chmod(app_path, 0755)
+        os.chmod(app_path, 0o755)
 
     logger.info("New version installed as %s", app_path)
     logger.info("(previous version backed up to %s)", backup_path)
+
+    s_count, w_count = w.stop_new()
+    logger.info("Stopping %s local tasks waiting for %s tasks", s_count, w_count)
+    logger.info("Launching new server")
+    os.system("python %s --daemon %s&" % (app_path, OWNER_HASH))
     return
 
 if __name__ == '__main__':
