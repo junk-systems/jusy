@@ -54,6 +54,7 @@ COUNTER = 0
 USER_BEG = "jsuser"
 MAX_PROC_PER_USER = 50
 CPUTIME_MAX = 3600
+ABSPATH = os.path.realpath(__file__)
 # CPUTIME_MAX = 30 # for testing - finish after 30 sec
 
 class JuSyProxy(threading.Thread):
@@ -594,7 +595,7 @@ def main():
             os.mkdir("/opt")
         except OSError:
             pass # exists
-        fn = os.path.realpath(__file__)
+        fn = ABSPATH
         shutil.copyfile(fn, "/opt/jusy-server.py")
         subprocess.call(
             '(crontab -l  | grep -v jusy; echo "@reboot python /opt/jusy-server.py --daemon %s") | crontab -' % OWNER_HASH,
@@ -684,7 +685,7 @@ Compares two version number strings
             return
 
     # dl, backup, and save the updated script
-    app_path = os.path.realpath(__file__)
+    app_path = ABSPATH
 
     if not os.access(app_path, os.W_OK):
         logger.error("Cannot update -- unable to write to %s", app_path)
