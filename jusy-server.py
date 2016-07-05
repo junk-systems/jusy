@@ -63,9 +63,9 @@ def get_lock(process_name):
     lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     try:
         lock_socket.bind('\0' + process_name)
-        print 'I got the lock'
+        logger.debug('got the lock')
     except socket.error:
-        print 'lock exists'
+        logger.error('lock exists - can not continue')
         sys.exit()
 
 class JuSyProxy(threading.Thread):
