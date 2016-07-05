@@ -173,7 +173,7 @@ class JSSession(JuSyProxy):
         self.nobsdacct = nobsdacct
         self.run_dict = {}
         if not self.test_login():
-            self.run = self.norun
+            self.run = self.no_run
 
     def no_run(self):
         logger.info("Not running due to errors")
