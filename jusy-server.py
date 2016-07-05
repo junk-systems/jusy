@@ -370,7 +370,12 @@ def count_cpu_time_live(username):
 def count_rss_kb_unsafe(username):
     o = subprocess.check_output("top -b -n 1 -u %s | awk -v var=\"%s\" 'NR>7 { sumC += $9; }; { sumM += $6; } END { print sumM; }'" % (username, username), shell=True)
     if not o: return 0
-    return int(o)
+    try:
+        o = int(o)
+    except ValueError:
+        logger.warning('cannot parse non-zero top rss ram count: %s', o)
+        return 0
+    return o
 
 def start_acct():
     # will only need this for RPM distros
@@ -568,6 +573,7 @@ def main():
         logger.error("Must be root to run jusy server")
         return
     if options.cronjob:
+        logger.info('Installing cron job and auto-update')
         try:
             os.mkdir("/opt")
         except OSError:
