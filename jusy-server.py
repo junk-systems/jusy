@@ -55,6 +55,8 @@ USER_BEG = "jsuser"
 MAX_PROC_PER_USER = 50
 CPUTIME_MAX = 3600
 ABSPATH = os.path.realpath(__file__)
+ENV = os.environ
+logger.error("ENV: %s", repr(ENV))
 # CPUTIME_MAX = 30 # for testing - finish after 30 sec
 
 # http://stackoverflow.com/a/7758075/2659616
