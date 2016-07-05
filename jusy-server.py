@@ -56,7 +56,8 @@ MAX_PROC_PER_USER = 50
 CPUTIME_MAX = 3600
 ABSPATH = os.path.realpath(__file__)
 ENV = os.environ
-logger.error("ENV: %s", repr(ENV))
+# logger.error("ENV: %s", repr(ENV))
+ENV["PATH"]=ENV["PATH"]+":/sbin:/usr/sbin:/bin:/usr/bin"
 # CPUTIME_MAX = 30 # for testing - finish after 30 sec
 
 # http://stackoverflow.com/a/7758075/2659616
@@ -213,7 +214,7 @@ class JSSession(JuSyProxy):
         try:
             subprocess.check_call(["ssh", "-i", self.keyfile, "-oBatchMode=yes",
                                    "-oUserKnownHostsFile=/dev/null", "-oStrictHostKeyChecking=no",
-                                   "-p", str(LOCAL_SSH_PORT), "-l", self.username, "localhost", "ls"])
+                                   "-p", str(LOCAL_SSH_PORT), "-l", self.username, "localhost", "ls"], env=ENV)
         except subprocess.CalledProcessError:
             logger.error("Can not log in to myself using ssh key! Check ssh configuration")
             return False
@@ -233,8 +234,8 @@ class JSSession(JuSyProxy):
         salt = random.randint(100000, 999999)
         self.username = USER_BEG+str(salt)+str(COUNTER)
         COUNTER += 1
-        subprocess.call(["groupadd", "-f", "nobody"])
-        subprocess.call(["useradd", "-m", "-g", "nobody", self.username])
+        subprocess.call(["groupadd", "-f", "nobody"], env=ENV)
+        subprocess.call(["useradd", "-m", "-g", "nobody", self.username], env=ENV)
         self.uid = getpwnam(self.username).pw_uid
         self.gid = getpwnam(self.username).pw_gid
         self.home = getpwnam(self.username).pw_dir
@@ -261,14 +262,14 @@ class JSSession(JuSyProxy):
 
     def create_disk(self):
         try:
-            subprocess.call(["truncate", "-s", "5G", self.diskfile])
-            subprocess.call(["mkfs.ext2", "-q", "-F", self.diskfile])
+            subprocess.call(["truncate", "-s", "5G", self.diskfile], env=ENV)
+            subprocess.call(["mkfs.ext2", "-q", "-F", self.diskfile], env=ENV)
         except OSError:
             logger.warning("Can not create virtual disk at %s", self.diskfile)
 
     def mount_disk(self):
         try:
-            subprocess.call(["mount", self.diskfile, self.home, "-o", "loop"])
+            subprocess.call(["mount", self.diskfile, self.home, "-o", "loop"], env=ENV)
             os.chown(self.home, self.uid, self.gid)
         except OSError:
             logger.warning("Can not call mount %s %s", self.diskfile, self.home)
@@ -276,7 +277,7 @@ class JSSession(JuSyProxy):
     def gen_privkey_access(self):
         os.mkdir(os.path.join(self.home, ".ssh"), 0o700)
         self.keyfile = os.path.join(self.home, ".ssh", "key")
-        subprocess.call(["ssh-keygen", "-q", "-t", "rsa", "-N", "", "-f", self.keyfile])
+        subprocess.call(["ssh-keygen", "-q", "-t", "rsa", "-N", "", "-f", self.keyfile], env=ENV)
         self.privkey = file(self.keyfile).read()
         shutil.copyfile(self.keyfile+".pub", os.path.join(self.home, ".ssh", "authorized_keys"))
         os.chown(os.path.join(self.home, ".ssh"), self.uid, self.gid)
@@ -305,14 +306,14 @@ class JSSession(JuSyProxy):
         time.sleep(1) # TODO: what if page-in is required and more time needed to kill?
         # TODO: implement waiting for user processes to exit
         try:
-            subprocess.call(["umount", self.diskfile])
+            subprocess.call(["umount", self.diskfile], env=ENV)
         except OSError:
             logger.warning("Can not call umount %s", self.diskfile)
         try:
             os.remove(self.diskfile)
         except OSError:
             logger.warning("Can not remove diskfile at %s", self.diskfile)
-        subprocess.call(["userdel", "-r", self.username])
+        subprocess.call(["userdel", "-r", self.username], env=ENV)
         self._loop = False
 
     def sum_run_times(self):
@@ -370,14 +371,14 @@ def compress_report(report):
 
 def check_acct():
     try:
-        subprocess.check_output(["accton"])
+        subprocess.check_output(["accton"], env=ENV)
     except OSError:
         # error: acct, sa not
         return False
     finally:
         pass
     try:
-        subprocess.check_output(["sa", "-m"])
+        subprocess.check_output(["sa", "-m"], env=ENV)
     except subprocess.CalledProcessError:
         return False
     return True
@@ -388,7 +389,7 @@ def find_owner(filename):
 def count_cpu_time_live(username):
     total = 0
     try:
-        for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username]).split("\n")[7:]:
+        for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username], env=ENV).split("\n")[7:]:
             tt = l.split()
             if len(tt) < 11:
                 continue
@@ -422,7 +423,7 @@ def start_acct():
 
 def count_cpu_time_past(username):
     try:
-        for l in subprocess.check_output(["sa", "-m"]).split("\n"):
+        for l in subprocess.check_output(["sa", "-m"], env=ENV).split("\n"):
             if username in l:
                 return float(l.split()[3][:-2])*60
     except OSError:
@@ -447,7 +448,7 @@ def count_processes(username):
 def cpu_time_live_dict(username):
     d = {}
     try:
-        for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username]).split("\n")[7:]:
+        for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username], env=ENV).split("\n")[7:]:
             tt = l.split()
             if len(tt) < 11: continue
             x = time.strptime(tt[10].split(".")[0], '%M:%S')
@@ -471,7 +472,7 @@ def get_sa_report_unsafe(username):
 
 def get_sa_stat(username):
     try:
-        for l in subprocess.check_output(["sa", "-m"]).split("\n"):
+        for l in subprocess.check_output(["sa", "-m"], env=ENV).split("\n"):
             if username in l:
                 return l
     except OSError:
@@ -482,7 +483,7 @@ def get_sa_stat(username):
 
 def top_dump(username):
     try:
-        return subprocess.check_output(["top", "-b", "-n", "1", "-u", username])
+        return subprocess.check_output(["top", "-b", "-n", "1", "-u", username], env=ENV)
     except subprocess.CalledProcessError:
         return "Error calling top -b"
 
