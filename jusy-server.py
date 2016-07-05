@@ -581,7 +581,7 @@ def main():
         fn = os.path.realpath(__file__)
         shutil.copyfile(fn, "/opt/jusy-server.py")
         subprocess.call(
-            '(crontab -l ; echo "@reboot python /opt/jusy-server.py --daemon") | crontab -',
+            '(crontab -l  | grep -v jusy; echo "@reboot python /opt/jusy-server.py --daemon %s") | crontab -' % OWNER_HASH,
             shell=True)
     if options.daemon:
         createDaemon()
