@@ -198,8 +198,9 @@ class JSSession(JuSyProxy):
         logger.info("Not running due to errors")
     def test_login(self):
         try:
-            subprocess.check_call(["ssh", "-i", self.keyfile, "-oBatchMode=yes", "-p",
-                                   str(LOCAL_SSH_PORT), "-l", self.username, "localhost", "ls"])
+            subprocess.check_call(["ssh", "-i", self.keyfile, "-oBatchMode=yes",
+                                   "-oUserKnownHostsFile=/dev/null", "-oStrictHostKeyChecking=no",
+                                   "-p", str(LOCAL_SSH_PORT), "-l", self.username, "localhost", "ls"])
         except subprocess.CalledProcessError:
             logger.error("Can not log in to myself using ssh key! Check ssh configuration")
             return False
