@@ -609,8 +609,6 @@ def main():
     options, args = parser.parse_args()
     global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH, w
     OWNER_HASH = args[0] # first parameter is owner hash
-    if not options.nolock:
-        get_lock("jusy_server")
 
     if options.debug:
         ch.setLevel(logging.DEBUG)
@@ -618,6 +616,8 @@ def main():
     else:
         ch.setLevel(logging.ERROR)
         logger.setLevel(logging.INFO)
+    if not options.nolock:
+        get_lock("jusy_server")
     if options.sessions_count > 0:
         NSESSIONS = options.sessions_count
     LOCAL_SSH_PORT = options.ssh_port
