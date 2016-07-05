@@ -288,7 +288,7 @@ class JSSession(JuSyProxy):
 
     def stop(self):
         self.run = self.no_run
-        subprocess.call("ps -o pid= -u %s | xargs sudo kill -9" % self.username, shell=True)
+        subprocess.call("ps -o pid= -u %s | xargs kill -9" % self.username, shell=True)
         time.sleep(1) # TODO: what if page-in is required and more time needed to kill?
         # TODO: implement waiting for user processes to exit
         try:
