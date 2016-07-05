@@ -57,6 +57,17 @@ CPUTIME_MAX = 3600
 ABSPATH = os.path.realpath(__file__)
 # CPUTIME_MAX = 30 # for testing - finish after 30 sec
 
+# http://stackoverflow.com/a/7758075/2659616
+def get_lock(process_name):
+    global lock_socket   # Without this our lock gets garbage collected
+    lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        lock_socket.bind('\0' + process_name)
+        print 'I got the lock'
+    except socket.error:
+        print 'lock exists'
+        sys.exit()
+
 class JuSyProxy(threading.Thread):
     def __init__(self):
         super(JuSyProxy, self).__init__()
@@ -591,9 +602,16 @@ def main():
     parser.add_option(
         '-f', '--daemon', dest='daemon', action="store_true",
         help='Fork to background', default=False)
+    parser.add_option(
+        '-n', '--no-lock', dest='nolock', action="store_true",
+        help='Create lock to avoid multiple runs', default=False)
+    options, args = parser.parse_args()
     options, args = parser.parse_args()
     global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH, w
     OWNER_HASH = args[0] # first parameter is owner hash
+    if not options.nolock:
+        get_lock("jusy_server")
+
     if options.debug:
         ch.setLevel(logging.DEBUG)
         logger.setLevel(logging.DEBUG)
@@ -615,7 +633,7 @@ def main():
         fn = ABSPATH
         shutil.copyfile(fn, "/opt/jusy-server.py")
         subprocess.call(
-            '(crontab -l  | grep -v jusy; echo "@reboot python /opt/jusy-server.py --daemon %s") | crontab -' % OWNER_HASH,
+            '(crontab -l  | grep -v jusy; echo "* * * * * python /opt/jusy-server.py --daemon %s") | crontab -' % OWNER_HASH,
             shell=True)
     if options.daemon:
         createDaemon()
@@ -774,7 +792,7 @@ Compares two version number strings
     s_count, w_count = w.stop_new()
     logger.info("Stopping %s local tasks waiting for %s tasks", s_count, w_count)
     logger.info("Launching new server")
-    os.system("python %s --daemon %s&" % (app_path, OWNER_HASH))
+    os.system("python %s --no-lock --daemon %s&" % (app_path, OWNER_HASH))
     return
 
 if __name__ == '__main__':
