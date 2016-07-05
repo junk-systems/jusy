@@ -549,7 +549,7 @@ def main():
         '-i', '--install-cronjob', dest='cronjob', action="store_true",
         help='Automatically add cron job to run and update', default=False)
     parser.add_option(
-        '-d', '--daemon', dest='daemon', action="store_true",
+        '-f', '--daemon', dest='daemon', action="store_true",
         help='Fork to background', default=False)
     options, args = parser.parse_args()
     global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH, w
