@@ -217,8 +217,8 @@ class JSSession(JuSyProxy):
         salt = random.randint(100000, 999999)
         self.username = USER_BEG+str(salt)+str(COUNTER)
         COUNTER += 1
-        subprocess.call(["addgroup", "nobody"])
-        subprocess.call(["adduser", "--disabled-password", "--gecos", "",
+        subprocess.call(["addgroup", "--quiet", "nobody"])
+        subprocess.call(["adduser", "--quiet", "--disabled-password", "--gecos", "",
                          "--ingroup", "nobody", self.username])
         self.uid = getpwnam(self.username).pw_uid
         self.gid = getpwnam(self.username).pw_gid
