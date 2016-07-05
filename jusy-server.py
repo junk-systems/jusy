@@ -84,6 +84,8 @@ class JuSyProxy(threading.Thread):
             self.send_dict({"type": "prng_result", "result": str(float(cr))})
             logger.debug("Replying with computation %s - %s that took %ss",
                          d['seed'], cr, time.time() - ts)
+        if d["type"] == "message":
+            logger.info("Server says: %s", d["msg"])
     def add_pubkey(self, key):
         'to be overwritten by inherit'
         pass
