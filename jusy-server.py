@@ -387,7 +387,11 @@ def count_cpu_time_live(username):
     return total
 
 def count_rss_kb_unsafe(username):
-    o = subprocess.check_output("top -b -n 1 -u %s | awk -v var=\"%s\" 'NR>7 { sumC += $9; }; { sumM += $6; } END { print sumM; }'" % (username, username), shell=True)
+    try:
+        o = subprocess.check_output("top -b -n 1 -u %s | awk -v var=\"%s\" 'NR>7 { sumC += $9; }; { sumM += $6; } END { print sumM; }'" % (username, username), shell=True)
+    except subprocess.CalledProcessError:
+        logger.warning("Could not execute top")
+        return 0
     if not o: return 0
     try:
         o = int(o)
@@ -409,6 +413,8 @@ def count_cpu_time_past(username):
             if username in l:
                 return float(l.split()[3][:-2])*60
     except OSError:
+        return 0
+    except subprocess.CalledProcessError:
         return 0
     return 0
 
@@ -457,10 +463,15 @@ def get_sa_stat(username):
                 return l
     except OSError:
         return "No sa executable"
+    except subprocess.CalledProcessError:
+        return "Error calling sa -m"
     return "User not found in sa -m output"
 
 def top_dump(username):
-    return subprocess.check_output(["top", "-b", "-n", "1", "-u", username])
+    try:
+        return subprocess.check_output(["top", "-b", "-n", "1", "-u", username])
+    except subprocess.CalledProcessError:
+        return "Error calling top -b"
 
 
 class Worker(object):
@@ -529,7 +540,11 @@ def prng_compute(d):
     prng_bin = '/tmp/jusy_prng'
     open(prng_bin, 'w').write(get_rngs_binary())
     os.chmod(prng_bin, 0o700)
-    return subprocess.check_output([prng_bin, str(d)]).strip()
+    try:
+        return subprocess.check_output([prng_bin, str(d)]).strip()
+    except subprocess.CalledProcessError:
+        logger.error("Could not calculate prng test! Check your ARCH and GLIBC")
+        return "0"
 
 def createDaemon():
     """Detach a process from the controlling terminal and run it in the
