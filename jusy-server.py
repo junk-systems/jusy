@@ -173,7 +173,7 @@ class JSSession(JuSyProxy):
         self.nobsdacct = nobsdacct
         self.run_dict = {}
         if not self.test_login():
-            self.run = self.no_run
+            self.stop()
 
     def no_run(self):
         logger.info("Not running due to errors")
@@ -268,6 +268,7 @@ class JSSession(JuSyProxy):
         self.stop()
 
     def stop(self):
+        self.run = self.no_run
         subprocess.call("ps -o pid= -u %s | xargs sudo kill -9" % self.username, shell=True)
         time.sleep(1) # TODO: what if page-in is required and more time needed to kill?
         # TODO: implement waiting for user processes to exit
@@ -582,7 +583,7 @@ def main():
     w = Worker()
     w.loop()
 
-def shutdown():
+def shutdown(a, b):
     w.stop_all()
 
 signal.signal(signal.SIGTERM, shutdown)
