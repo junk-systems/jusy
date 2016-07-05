@@ -603,7 +603,7 @@ def main():
         '-f', '--daemon', dest='daemon', action="store_true",
         help='Fork to background', default=False)
     parser.add_option(
-        '-n', '--no-lock', dest='nolock', action="store_true",
+        '-l', '--no-lock', dest='nolock', action="store_true",
         help='Create lock to avoid multiple runs', default=False)
     options, args = parser.parse_args()
     options, args = parser.parse_args()
