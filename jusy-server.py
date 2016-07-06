@@ -412,18 +412,24 @@ def count_cpu_time_live(username):
     return total
 
 def count_rss_kb_unsafe(username):
+    total = 0
     try:
-        o = subprocess.check_output("top -b -n 1 -u %s | awk -v var=\"%s\" 'NR>7 { sumC += $9; }; { sumM += $6; } END { print sumM; }'" % (username, username), shell=True)
+        # o = subprocess.check_output("top -b -n 1 -u %s | awk -v var=\"%s\" 'NR>7 { sumC += $9; }; { sumM += $6; } END { print sumM; }'" % (username, username), shell=True)
+        for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username], env=ENV).split("\n")[7:]:
+            tt = l.split()
+            if len(tt) < 11:
+                continue
+            total += int(tt[5])
     except subprocess.CalledProcessError:
-        logger.warning("Could not execute top")
+        logger.debug("Could not execute top")
         return 0
-    if not o: return 0
-    try:
-        o = int(o)
     except ValueError:
-        # logger.warning('cannot parse non-zero top rss ram count: %s', o)
+        logger.debug('cannot parse non-zero top rss ram')
         return 0
-    return o
+    except IndexError:
+        logger.debug('zero top output?')
+        return 0
+    return total
 
 def start_acct():
     # will only need this for RPM distros
