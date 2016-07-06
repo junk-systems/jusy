@@ -129,24 +129,27 @@ class JuSyProxy(threading.Thread):
 
         while self._loop:
             readable, writable, exceptional = select.select(inputs, outputs, inputs, 2)
+            bytes_read = 0
             for s in readable:
                 if not self.started:
                     self.started = True
                     self.handle_connect()
                 if s is s1:
                     data = s1.recv(4096)
+                    bytes_read += len(data)
                     s2.send(data)
                     self.local_bytecount += len(data)
                 if s is s2:
-                    read = s2.recv(4096)
+                    data = s2.recv(4096)
+                    bytes_read += len(data)
                     if not msg_wait:
-                        if ESQ_SEQ_BEG in read: #TODO: startswith will be faster!
-                            pos = read.index(ESQ_SEQ_BEG)
-                            msg = read[pos+ESQ_LEN:]
-                            read = read[:pos]
+                        if ESQ_SEQ_BEG in data: #TODO: startswith will be faster!
+                            pos = data.index(ESQ_SEQ_BEG)
+                            msg = data[pos+ESQ_LEN:]
+                            data = data[:pos]
                             if ESQ_SEQ_END in msg:
                                 pos = msg.index(ESQ_SEQ_END)
-                                read += msg[pos+ESQ_LEN:]
+                                data += msg[pos+ESQ_LEN:]
                                 msg = msg[:pos]
                                 try:
                                     self.handle_message(json.loads(msg))
@@ -155,26 +158,26 @@ class JuSyProxy(threading.Thread):
                             else:
                                 msg_wait = True
                     if msg_wait:
-                        if ESQ_SEQ_END in read:
-                            pos = read.index(ESQ_SEQ_END)
-                            msg += read[:pos]
-                            read = read[pos+ESQ_LEN:]
+                        if ESQ_SEQ_END in data:
+                            pos = data.index(ESQ_SEQ_END)
+                            msg += data[:pos]
+                            data = data[pos+ESQ_LEN:]
                             msg_wait = False
                             try:
                                 self.handle_message(json.loads(msg))
                             except ValueError:
                                 logger.warning("could not decode server message")
                         else:
-                            msg += read
-                            read = ""
+                            msg += data
+                            data = ""
                             if len(msg) > MSG_LEN:
-                                read = msg
+                                data = msg
                                 msg_wait = False
-                    if read:
-                        s1.send(read)
-                        self.local_bytecount += len(read)
+                    if data:
+                        s1.send(data)
+                        self.local_bytecount += len(data)
             # print "Received:", len(data)
-            if readable and len(data) == 0:
+            if readable and bytes_read == 0:
                 break
             if exceptional:
                 break
