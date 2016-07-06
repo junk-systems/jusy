@@ -346,14 +346,17 @@ class JSSession(JuSyProxy):
             self.finish("FIN_DONE")
             return
         if proccount > MAX_PROC_PER_USER:
+            logger.debug("Max process count exceeded for %s: %s", self.username, proccount)
             self.finish("FIN_MAXPROC_EXCEEDED")
             return
         ram_kb = count_rss_kb_unsafe(self.username)
         if ram_kb > 2e6:
+            logger.debug("Ram exceeded for %s: %s kb", self.username, ram_kb)
             self.finish("FIN_RAM_EXCEEDED")
             return
         # if time.time() - self.accounting_start_ts > 3600 * 3 and cputime < 500:
         if time.time() - self.accounting_start_ts > 3600 * 3:
+            logger.debug("Finishing - Idle %s: %s", self.username, time.time() - self.accounting_start_ts)
             self.finish("FIN_IDLE")
             return
         if self.account_call_count % 10 == 0:
