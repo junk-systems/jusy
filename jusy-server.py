@@ -80,7 +80,12 @@ class JuSyProxy(threading.Thread):
         self.local_bytecount = 0
     def send_dict(self, d):
         s = json.dumps(d)
-        self.send_sock.send(ESQ_SEQ_BEG+s+ESQ_SEQ_END)
+        try:
+            self.send_sock.send(ESQ_SEQ_BEG+s+ESQ_SEQ_END)
+        except socket.error:
+            logger.error("Failed to send message (socket error): %s", repr(s))
+        except AttributeError:
+            logger.error("Failed to send message (incorrect state): %s", repr(s))
     def handle_connect(self):
         pass
     def finish(self, fin_code):
