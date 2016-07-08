@@ -22,7 +22,7 @@ __status__ = "Beta"
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, multiprocessing, signal, socket, select, json, threading
+import sys, multiprocessing, signal, socket, select, json, threading, traceback
 import time, subprocess, random, os, shutil, datetime, string, base64, gzip
 from os import stat
 from pwd import getpwuid
@@ -302,8 +302,18 @@ class JSSession(JuSyProxy):
                             local_acct, top_dump(self.username)], "\n---\n")
 
     def finish(self, fin_code):
-        report = self.collect_report()
-        full_rep = {"type": "finish", "fin_code": fin_code, "report": compress_report(report)}
+        try:
+            report = self.collect_report()
+        except:
+            logger.error('could not collect report for %s %s', self.username, traceback.format_exc())
+            report = 'could not collect report'
+        try:
+            creport = compress_report(report)
+        except:
+            logger.error('could not compress report for %s %s', self.username, traceback.format_exc())
+            creport = 'could not collect report'
+
+        full_rep = {"type": "finish", "fin_code": fin_code, "report": creport}
         if fin_code != "FIN_CONN_CLOSED":
             self.send_dict(full_rep)
         self.stop()
@@ -531,12 +541,17 @@ class Worker(object):
         update_check = random.randint(720,1080)
         try:
             while self._loop:
-                if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
-                    logger.debug("Starting new session, current: %s", repr(self.sessions))
-                    self.start_session()
-                self.check_cpu_times()
-                if loopcount % update_check == 0:
-                    update(__scripturl__)
+                try:
+                    if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
+                        logger.debug("Starting new session, current: %s", repr(self.sessions))
+                        self.start_session()
+                    self.check_cpu_times()
+                    if loopcount % update_check == 0:
+                        update(__scripturl__)
+                except KeyboardInterrupt:
+                    raise
+                except:
+                    logger.error('Exception in main loop: %s', traceback.format_exc())
                 loopcount += 1
                 time.sleep(5)
         except KeyboardInterrupt:
