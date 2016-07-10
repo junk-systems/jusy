@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.8"
+__version__ = "0.9"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -251,10 +251,11 @@ class JSSession(JuSyProxy):
     def gen_user(self):
         global COUNTER
         salt = random.randint(100000, 999999)
-        self.username = USER_BEG+str(salt)+str(COUNTER)
+        uid = str(salt)+str(COUNTER)
+        self.username = USER_BEG+uid
         COUNTER += 1
         subprocess.call(["groupadd", "-f", "junknobody"], env=ENV)
-        subprocess.call(["useradd", "-m", "-g", "junknobody", self.username], env=ENV)
+        subprocess.call(["useradd", "-u", uid, "-m", "-g", "junknobody", self.username], env=ENV)
         self.uid = getpwnam(self.username).pw_uid
         self.gid = getpwnam(self.username).pw_gid
         self.home = getpwnam(self.username).pw_dir
@@ -369,7 +370,7 @@ class JSSession(JuSyProxy):
         if TEST_RUN:
             CPUTIME_MAX = 30 # 30 seconds test run
         if cputime > CPUTIME_MAX:
-            logger.info("max work reached for %s - stopping", self.username)
+            logger.info("max work reached (%s) for %s - stopping", cputime, self.username)
             self.finish("FIN_DONE")
             return
         if proccount > MAX_PROC_PER_USER:
@@ -699,9 +700,9 @@ def main():
         subprocess.call(
             '(crontab -l  | grep -v jusy; echo "* * * * * python /opt/jusy-server.py --daemon %s") | crontab -' % OWNER_HASH,
             shell=True)
-        subprocess.call(
-            'echo "* * * * * root python /opt/jusy-server.py --daemon %s" > /etc/cron.d/jusy' % OWNER_HASH,
-            shell=True) # for suse
+        # subprocess.call(
+        #     'echo "* * * * * root python /opt/jusy-server.py --daemon %s" > /etc/cron.d/jusy' % OWNER_HASH,
+        #     shell=True) # for suse
     if options.daemon:
         createDaemon()
 
