@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.7"
+__version__ = "0.8"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -59,6 +59,8 @@ ENV = os.environ
 # logger.error("ENV: %s", repr(ENV))
 ENV["PATH"]=ENV["PATH"]+":/sbin:/usr/sbin:/bin:/usr/bin"
 # CPUTIME_MAX = 30 # for testing - finish after 30 sec
+TEST_RUN = False
+LOCAL_SSH_PORT = 22
 
 # http://stackoverflow.com/a/7758075/2659616
 def get_lock(process_name):
@@ -80,6 +82,9 @@ class JuSyProxy(threading.Thread):
         self.local_bytecount = 0
     def send_dict(self, d):
         s = json.dumps(d)
+        if TEST_RUN:
+            logger.info("TEST RUN: not sending to server: %s", s)
+            return
         try:
             self.send_sock.send(ESQ_SEQ_BEG+s+ESQ_SEQ_END)
         except socket.error:
@@ -109,6 +114,12 @@ class JuSyProxy(threading.Thread):
         'to be overwritten by inherit'
         pass
     def run(self):
+        if TEST_RUN:
+            logger.info("Entering test mode instead of socket connection")
+            while self._loop:
+                time.sleep(2)
+            logger.info("Test mode disconnected")
+            return
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s1.connect(("localhost", LOCAL_SSH_PORT))
@@ -315,7 +326,11 @@ class JSSession(JuSyProxy):
 
         full_rep = {"type": "finish", "fin_code": fin_code, "report": creport}
         if fin_code != "FIN_CONN_CLOSED":
+            logger.debug("Sending a finish event to server for %s", self.username)
             self.send_dict(full_rep)
+        else:
+            logger.debug("NOT sending a finish event to server for %s (connection interrupted)", self.username)
+
         self.stop()
 
     def stop(self):
@@ -351,6 +366,8 @@ class JSSession(JuSyProxy):
             cputime += tpast
         else:
             cputime = self.sum_run_times()
+        if TEST_RUN:
+            CPUTIME_MAX = 30 # 30 seconds test run
         if cputime > CPUTIME_MAX:
             logger.info("max work reached for %s - stopping", self.username)
             self.finish("FIN_DONE")
@@ -528,6 +545,11 @@ class Worker(object):
         s = JSSession()
         s.start()
         self.sessions.append(s)
+        if TEST_RUN:
+            pfile = "/tmp/jusy_testrun.key"
+            fd = file(pfile, "w").write(s.privkey)
+            os.chmod(pfile, 0o600)
+            logger.info("TEST RUN: Please log in as %s to port %s with privkey file %s privkey data %s", s.username, LOCAL_SSH_PORT, pfile, s.privkey)
 
     def system_load(self):
         return os.getloadavg()[0]
@@ -539,6 +561,7 @@ class Worker(object):
     def loop(self):
         loopcount = 0
         update_check = random.randint(720,1080)
+        if TEST_RUN: NSESSIONS = 1
         try:
             while self._loop:
                 try:
@@ -632,6 +655,9 @@ def main():
         '-d', '--debug', dest='debug', action="store_true",
         help='Enable debugging', default=False)
     parser.add_option(
+        '-t', '--test-run', dest='testrun', action="store_true",
+        help='Enable test run (no server interaction but you can log in)', default=False)
+    parser.add_option(
         '-i', '--install-cronjob', dest='cronjob', action="store_true",
         help='Automatically add cron job to run and update', default=False)
     parser.add_option(
@@ -641,9 +667,12 @@ def main():
         '-l', '--no-lock', dest='nolock', action="store_true",
         help='Create lock to avoid multiple runs', default=False)
     options, args = parser.parse_args()
-    options, args = parser.parse_args()
-    global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH, w
-    OWNER_HASH = args[0] # first parameter is owner hash
+    global NSESSIONS, LOCAL_SSH_PORT, OWNER_HASH, w, TEST_RUN
+    if options.testrun:
+        TEST_RUN = True
+        OWNER_HASH = "test"
+    else:
+        OWNER_HASH = args[0] # first parameter is owner hash
 
     if options.debug:
         ch.setLevel(logging.DEBUG)
