@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.14"
+__version__ = "0.15"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -440,9 +440,9 @@ def count_cpu_time_live(username):
             if len(tt) < 11:
                 continue
             # x = time.strptime(tt[10].split(".")[0], '%M:%S')
-            x = min2sec(tt[10])
-            total += datetime.timedelta(hours=x.tm_hour, minutes=x.tm_min,
-                                        seconds=x.tm_sec).total_seconds()
+            # total += datetime.timedelta(hours=x.tm_hour, minutes=x.tm_min,
+                                        # seconds=x.tm_sec).total_seconds()
+            total += min2sec(tt[10])
     except subprocess.CalledProcessError:
         pass
     return total
@@ -509,9 +509,9 @@ def cpu_time_live_dict(username):
             tt = l.split()
             if len(tt) < 11: continue
             # x = time.strptime(tt[10].split(".")[0], '%M:%S')
-            x = min2sec(tt[10])
-            c_time = datetime.timedelta(hours=x.tm_hour,
-                                        minutes=x.tm_min, seconds=x.tm_sec).total_seconds()
+            # c_time = datetime.timedelta(hours=x.tm_hour,
+            #                             minutes=x.tm_min, seconds=x.tm_sec).total_seconds()
+            c_time = min2sec(tt[10])
             pid = int(tt[0])
             d[pid] = c_time
     except subprocess.CalledProcessError:
