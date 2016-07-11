@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.16"
+__version__ = "0.18"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -558,6 +558,7 @@ class Worker(object):
         self.machine_id = machine_id
         self.sessions = []
         self._loop = True
+        self._accept_new = True
 
     def count_sessions(self):
         self.sessions = [t for t in self.sessions if t.isAlive()]
@@ -597,7 +598,7 @@ class Worker(object):
                 try:
                     if loopcount % update_check == 0:
                         update(__scripturl__)
-                    if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
+                    if self._accept_new and self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
                         logger.debug("Starting new session, current: %s", repr(self.sessions))
                         self.start_session()
                     self.check_cpu_times()
@@ -615,7 +616,7 @@ class Worker(object):
             s.stop()
     def stop_new(self):
         "stop new and unused sessions"
-        self._loop = False
+        self._accept_new = False
         s_count = 0
         w_count = 0
         for s in self.sessions:
