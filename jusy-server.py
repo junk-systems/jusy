@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.13"
+__version__ = "0.14"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -7,7 +7,7 @@ __credits__ = ["Andrew Gryaznov"]
 __license__ = "GPL version 3"
 __maintainer__ = "Andrew Gryaznov"
 __email__ = "realgrandrew@gmail.com"
-__status__ = "Beta"
+__status__ = "Alpha"
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -61,6 +61,11 @@ ENV["PATH"]=ENV["PATH"]+":/sbin:/usr/sbin:/bin:/usr/bin"
 # CPUTIME_MAX = 30 # for testing - finish after 30 sec
 TEST_RUN = False
 LOCAL_SSH_PORT = 22
+if __status__ == 'Alpha':
+    UPDATE_CHECK_INTVL = 600
+else:
+    UPDATE_CHECK_INTVL = 3600
+
 
 # http://stackoverflow.com/a/7758075/2659616
 def get_lock(process_name):
@@ -565,12 +570,19 @@ class Worker(object):
 
     def check_cpu_times(self):
         for s in self.sessions:
-            s.check_accounting()
+            try:
+                s.check_accounting()
+            except KeyboardInterrupt:
+                raise
+            except:
+                logger.error('Exception in accounting check %s \n - forcedly finishing', traceback.format_exc())
+                s.finish("FIN_INTERNAL_ERROR")
+
 
     def loop(self):
         global NSESSIONS
         loopcount = 0
-        update_check = random.randint(720,1080)
+        update_check = random.randint(UPDATE_CHECK_INTVL / 5,UPDATE_CHECK_INTVL / 5 + UPDATE_CHECK_INTVL / 10)
         if TEST_RUN: NSESSIONS = 1
         try:
             while self._loop:
