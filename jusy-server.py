@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.19"
+__version__ = "0.20"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -621,6 +621,8 @@ class Worker(object):
                     logger.error('Exception in main loop: %s', traceback.format_exc())
                 loopcount += 1
                 self.clean_removelist()
+                if not self._accept_new and self.count_sessions() == 0:
+                    break
                 time.sleep(5)
         except KeyboardInterrupt:
             self.stop_all()
