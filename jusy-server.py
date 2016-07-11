@@ -23,7 +23,7 @@ __status__ = "Alpha"
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys, multiprocessing, signal, socket, select, json, threading, traceback
-import time, subprocess, random, os, shutil, datetime, string, base64, gzip
+import time, subprocess, random, os, shutil, datetime, string, base64, gzip, hashlib
 from os import stat
 from pwd import getpwuid
 from pwd import getpwnam
@@ -66,6 +66,11 @@ if __status__ == 'Alpha':
 else:
     UPDATE_CHECK_INTVL = 3600
 
+def machine_id():
+    host = socket.gethostname()
+    w = subprocess.check_output("ifconfig -a", shell=True)
+    h = hashlib.md5(w)
+    return host+h.digest().encode('base64')[:6]
 
 # http://stackoverflow.com/a/7758075/2659616
 def get_lock(process_name):
@@ -213,7 +218,7 @@ class JuSyProxy(threading.Thread):
 
 
 class JSSession(JuSyProxy):
-    def __init__(self, nobsdacct=False):
+    def __init__(self, machine_id, nobsdacct=False):
         super(JSSession, self).__init__()
         self.username = ""
         self.privkey = "" # will be filled by get_privkey_access
@@ -229,6 +234,7 @@ class JSSession(JuSyProxy):
         self.idle_count = 0
         self.nobsdacct = nobsdacct
         self.run_dict = {}
+        self.machine_id = machine_id
         if not self.test_login():
             self.stop()
 
@@ -251,7 +257,7 @@ class JSSession(JuSyProxy):
 
     def handle_connect(self):
         self.send_dict({"type": "announce", "username": self.username,
-                        "privkey": self.privkey, "owner_hash": OWNER_HASH})
+                        "privkey": self.privkey, "owner_hash": OWNER_HASH, "machine_id": self.machine_id})
 
     def gen_user(self):
         global COUNTER
@@ -547,7 +553,9 @@ def top_dump(username):
 
 
 class Worker(object):
-    def __init__(self):
+    def __init__(self, machine_id):
+        logger.info("Starting jusy server with machine id %s", machine_id)
+        self.machine_id = machine_id
         self.sessions = []
         self._loop = True
 
@@ -556,7 +564,7 @@ class Worker(object):
         return len(self.sessions)
 
     def start_session(self):
-        s = JSSession()
+        s = JSSession(self.machine_id)
         s.start()
         self.sessions.append(s)
         if TEST_RUN:
@@ -674,6 +682,10 @@ def main():
         type='int', dest='sessions_count', default=0,
         help='Force amount of parallel sessions (= # of CPUs by default)')
     parser.add_option(
+        '-m', '--machine-id',
+        dest='machine_id', default=machine_id(),
+        help="Supply an optional machine identifier as a string of any format")
+    parser.add_option(
         '-d', '--debug', dest='debug', action="store_true",
         help='Enable debugging', default=False)
     parser.add_option(
@@ -727,7 +739,7 @@ def main():
     if options.daemon:
         createDaemon()
 
-    w = Worker()
+    w = Worker(options.machine_id)
     w.loop()
 
 def shutdown(a, b):
