@@ -330,7 +330,8 @@ class JSSession(JuSyProxy):
             logger.debug("Sending a finish event to server for %s", self.username)
             self.send_dict(full_rep)
         else:
-            logger.debug("NOT sending a finish event to server for %s (connection interrupted)", self.username)
+            # logger.debug("NOT sending a finish event to server for %s (connection interrupted)", self.username)
+            pass # connection may be interrupted locally due to ssh socket close; no need to notify
 
         self.stop()
 
@@ -433,12 +434,17 @@ def count_cpu_time_live(username):
             tt = l.split()
             if len(tt) < 11:
                 continue
-            x = time.strptime(tt[10].split(".")[0], '%M:%S')
+            # x = time.strptime(tt[10].split(".")[0], '%M:%S')
+            x = min2sec(tt[10])
             total += datetime.timedelta(hours=x.tm_hour, minutes=x.tm_min,
                                         seconds=x.tm_sec).total_seconds()
     except subprocess.CalledProcessError:
         pass
     return total
+
+def min2sec(top_out):
+    t = top_out.split(".")[0]
+    return sum(int(x) * 60 ** i for i,x in enumerate(reversed(t.split(":"))))
 
 def count_rss_kb_unsafe(username):
     total = 0
@@ -497,7 +503,8 @@ def cpu_time_live_dict(username):
         for l in subprocess.check_output(["top", "-b", "-n", "1", "-u", username], env=ENV).split("\n")[7:]:
             tt = l.split()
             if len(tt) < 11: continue
-            x = time.strptime(tt[10].split(".")[0], '%M:%S')
+            # x = time.strptime(tt[10].split(".")[0], '%M:%S')
+            x = min2sec(tt[10])
             c_time = datetime.timedelta(hours=x.tm_hour,
                                         minutes=x.tm_min, seconds=x.tm_sec).total_seconds()
             pid = int(tt[0])
