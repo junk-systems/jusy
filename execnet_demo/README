@@ -1,0 +1,10 @@
+To run a demo project you should receive your Client Hash at https://junk.systems
+
+invoke:
+
+python execnet_test <your client hash> <amount of cores>
+
+like:
+
+python execnet_test fhhliuNIuH4kjhnKJHKJHF7 5
+
