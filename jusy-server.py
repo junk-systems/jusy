@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.15"
+__version__ = "0.16"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
