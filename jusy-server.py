@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.10"
+__version__ = "0.11"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -567,12 +567,12 @@ class Worker(object):
         try:
             while self._loop:
                 try:
+                    if loopcount % update_check == 0:
+                        update(__scripturl__)
                     if self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
                         logger.debug("Starting new session, current: %s", repr(self.sessions))
                         self.start_session()
                     self.check_cpu_times()
-                    if loopcount % update_check == 0:
-                        update(__scripturl__)
                 except KeyboardInterrupt:
                     raise
                 except:
