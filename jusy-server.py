@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.18"
+__version__ = "0.19"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -218,7 +218,7 @@ class JuSyProxy(threading.Thread):
 
 
 class JSSession(JuSyProxy):
-    def __init__(self, machine_id, nobsdacct=False):
+    def __init__(self, machine_id, delayed_remover, nobsdacct=False):
         super(JSSession, self).__init__()
         self.username = ""
         self.privkey = "" # will be filled by get_privkey_access
@@ -235,6 +235,7 @@ class JSSession(JuSyProxy):
         self.nobsdacct = nobsdacct
         self.run_dict = {}
         self.machine_id = machine_id
+        self.delayed_removal = delayed_remover
         if not self.test_login():
             self.stop()
 
@@ -343,8 +344,9 @@ class JSSession(JuSyProxy):
         else:
             # logger.debug("NOT sending a finish event to server for %s (connection interrupted)", self.username)
             pass # connection may be interrupted locally due to ssh socket close; no need to notify
-
+        time.sleep(2) # give some time for the message to reach server: TODO: ensure that
         self.stop()
+
 
     def stop(self):
         self.run = self.no_run
@@ -358,7 +360,9 @@ class JSSession(JuSyProxy):
         try:
             os.remove(self.diskfile)
         except OSError:
-            logger.warning("Can not remove diskfile at %s", self.diskfile)
+            logger.warning("Can not remove diskfile at %s - will try later", self.diskfile)
+            self.delayed_removal.append(self.username)
+
         subprocess.call(["userdel", "-r", self.username], env=ENV)
         self._loop = False
 
@@ -559,13 +563,14 @@ class Worker(object):
         self.sessions = []
         self._loop = True
         self._accept_new = True
+        self.removelist = []
 
     def count_sessions(self):
         self.sessions = [t for t in self.sessions if t.isAlive()]
         return len(self.sessions)
 
     def start_session(self):
-        s = JSSession(self.machine_id)
+        s = JSSession(self.machine_id, self.removelist)
         s.start()
         self.sessions.append(s)
         if TEST_RUN:
@@ -576,6 +581,14 @@ class Worker(object):
 
     def system_load(self):
         return os.getloadavg()[0]
+
+    def clean_removelist(self):
+        for u in self.removelist:
+            try:
+                os.remove("/tmp/"+u+".iso")
+            except OSError:
+                logger.debug("DELAYED REMOVE Can not remove diskfile for %s - will try later", u)
+            subprocess.call(["userdel", "-r", u], env=ENV)
 
     def check_cpu_times(self):
         for s in self.sessions:
@@ -607,6 +620,7 @@ class Worker(object):
                 except:
                     logger.error('Exception in main loop: %s', traceback.format_exc())
                 loopcount += 1
+                self.clean_removelist()
                 time.sleep(5)
         except KeyboardInterrupt:
             self.stop_all()
