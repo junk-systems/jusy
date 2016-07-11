@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.9"
+__version__ = "0.10"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -560,6 +560,7 @@ class Worker(object):
             s.check_accounting()
 
     def loop(self):
+        global NSESSIONS
         loopcount = 0
         update_check = random.randint(720,1080)
         if TEST_RUN: NSESSIONS = 1
