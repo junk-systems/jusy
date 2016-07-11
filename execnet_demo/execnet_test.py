@@ -56,14 +56,20 @@ step = 1000
 
 while True:
     for channel in channels:
-        channel.send((start, start+step))
+        try:
+            channel.send((start, start+step))
+        except:
+            pass
         start += step
     i=0
     # since we receive from all channels first
     # we effectively sync on this step
     # it is better to rather use execnet callbacks instead
     for channel in channels:
-        print i, channel.receive()
+        try:
+            print i, channel.receive()
+        except:
+            print i, "closed"
         i+=1
     
 
