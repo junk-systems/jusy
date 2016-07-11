@@ -355,6 +355,7 @@ class JSSession(JuSyProxy):
         return sum(self.run_dict.values())
 
     def check_accounting(self):
+        global CPUTIME_MAX
         "implements all the accounting requirements"
         self.account_call_count += 1
         proccount = count_processes(self.username)
