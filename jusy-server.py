@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.20"
+__version__ = "0.21"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -32,7 +32,7 @@ import logging
 import logging.handlers
 logger = logging.getLogger('jusy')
 logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(name)s - v'+__version__+' - %(levelname)s - %(message)s')
 # handler = logging.handlers.SysLogHandler(address = '/dev/log')
 handler = logging.FileHandler('/var/log/jusy.log')
 handler.setFormatter(formatter)
@@ -609,7 +609,7 @@ class Worker(object):
         try:
             while self._loop:
                 try:
-                    if loopcount % update_check == 0:
+                    if self._accept_new and loopcount % update_check == 0:
                         update(__scripturl__)
                     if self._accept_new and self.count_sessions() < NSESSIONS and self.system_load() < NCORES*1.3:
                         logger.debug("Starting new session, current: %s", repr(self.sessions))
