@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.21"
+__version__ = "0.22"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -583,12 +583,20 @@ class Worker(object):
         return os.getloadavg()[0]
 
     def clean_removelist(self):
+        done = []
         for u in self.removelist:
             try:
                 os.remove("/tmp/"+u+".iso")
+                subprocess.call(["userdel", "-r", u], env=ENV)
+                shutil.rmtree("/home/"+u) # TODO: detect homedir correctly
+                done.append(u)
             except OSError:
                 logger.debug("DELAYED REMOVE Can not remove diskfile for %s - will try later", u)
-            subprocess.call(["userdel", "-r", u], env=ENV)
+            except:
+                logger.debug("CANT REMOVE Can not remove diskfile for %s - will try later", u)
+        self.removelist = [u for u in self.removelist if not u in done]
+
+
 
     def check_cpu_times(self):
         for s in self.sessions:
