@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__version__ = "0.22"
+__version__ = "0.23"
 __scripturl__ = "https://raw.githubusercontent.com/junk-systems/jusy/master/jusy-server.py"
 __author__ = "Andrew Gryaznov"
 __copyright__ = "Copyright 2016, Junk.Systems"
@@ -266,6 +266,10 @@ class JSSession(JuSyProxy):
         uid = str(salt)+str(COUNTER)
         self.username = USER_BEG+uid
         COUNTER += 1
+        if COUNTER >= 1000:
+            logger.debug("Dropping UID couter")
+            # TODO: clear acct file
+            COUNTER = 0
         subprocess.call(["groupadd", "-f", "junknobody"], env=ENV)
         subprocess.call(["useradd", "-u", uid, "-m", "-g", "junknobody", self.username], env=ENV)
         self.uid = getpwnam(self.username).pw_uid
