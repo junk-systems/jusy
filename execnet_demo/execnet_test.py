@@ -65,11 +65,15 @@ while True:
     # since we receive from all channels first
     # we effectively sync on this step
     # it is better to rather use execnet callbacks instead
+    closed = 0
     for channel in channels:
         try:
             print i, channel.receive()
         except:
             print i, "closed"
+            closed += 1
         i+=1
-    
+    if closed == i:
+        print 'All finished'
+        break
 
